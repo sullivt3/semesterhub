@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AssignmentPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum AssignmentStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum SyllabusProcessingStatus {
+  UPLOADED
+  PROCESSING
+  REVIEW
+  CONFIRMED
+  ERROR
+}
+
+enum CalendarEventKind {
+  CLASS
+  ASSIGNMENT
+  EXAM
+  CLUB_EVENT
+  PERSONAL
+}
+
+enum NotificationType {
+  GENERAL
+  ASSIGNMENT
+  EXAM
+  EVENT
+  REMINDER
+}
+
+model User {
+  id               String           @id @default(cuid())
+  name             String
+  email            String           @unique
+  profileImage     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  semesters        Semester[]
+  clubs            Club[]
+  notifications    Notification[]
+  calendarEvents   CalendarEvent[]
+}
+
+model Semester {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  startDate   DateTime
+  endDate     DateTime
+  isCurrent   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courses     Course[]
+  @@index([userId, isCurrent])
+}
+
+model Course {
+  id             String          @id @default(cuid())
+  semesterId     String
+  courseCode     String
+  name           String
+  description    String?
+  professorName  String?
+  professorEmail String?
+  building       String?
+  room           String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  semester       Semester        @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  meetings       ClassMeeting[]
+  assignments    Assignment[]
+  exams          Exam[]
+  syllabi        Syllabus[]
+  calendarEvents CalendarEvent[]
+  @@unique([semesterId, courseCode])
+  @@index([semesterId])
+}
+
+model ClassMeeting {
+  id        String   @id @default(cuid())
+  courseId  String
+  dayOfWeek Int
+  startDate DateTime?
+  endDate   DateTime?
+  startTime String
+  endTime   String
+  building  String?
+  room      String?
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@index([courseId, dayOfWeek])
+}
+
+model Assignment {
+  id             String             @id @default(cuid())
+  courseId       String
+  title          String
+  description    String?
+  dueDate        DateTime
+  dueTime        String
+  priority       AssignmentPriority @default(MEDIUM)
+  status         AssignmentStatus   @default(TODO)
+  weight         Float?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  course         Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  calendarEvents CalendarEvent[]
+  @@index([courseId, dueDate])
+}
+
+model Exam {
+  id             String          @id @default(cuid())
+  courseId       String
+  title          String
+  description    String?
+  examDate       DateTime
+  startTime      String
+  endTime        String
+  location       String?
+  course         Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  calendarEvents CalendarEvent[]
+  @@index([courseId, examDate])
+}
+
+model Syllabus {
+  id             String                  @id @default(cuid())
+  courseId       String
+  fileName       String
+  filePath       String
+  uploadedAt     DateTime                @default(now())
+  extractedText  String?
+  processingStatus SyllabusProcessingStatus @default(UPLOADED)
+  course         Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model Club {
+  id          String      @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  location    String?
+  website     String?
+  contactEmail String?
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events      ClubEvent[]
+  @@index([userId])
+}
+
+model ClubEvent {
+  id             String          @id @default(cuid())
+  clubId         String
+  name           String
+  description    String?
+  startDate      DateTime
+  endDate        DateTime
+  location       String?
+  club           Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  calendarEvents CalendarEvent[]
+  @@index([clubId, startDate])
+}
+
+model CalendarEvent {
+  id            String        @id @default(cuid())
+  userId        String
+  kind          CalendarEventKind
+  title         String
+  startDate     DateTime
+  endDate       DateTime
+  location      String?
+  assignmentId  String?
+  examId        String?
+  clubEventId   String?
+  courseId      String?
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignment    Assignment?   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  exam          Exam?         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  clubEvent     ClubEvent?    @relation(fields: [clubEventId], references: [id], onDelete: Cascade)
+  course        Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@index([userId, startDate])
+  @@index([kind, startDate])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  title       String
+  message     String
+  type        NotificationType @default(GENERAL)
+  scheduledFor DateTime?
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, read])
+}

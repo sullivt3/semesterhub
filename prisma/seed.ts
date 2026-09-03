@@ -1,0 +1,26 @@
+import { PrismaClient, AssignmentPriority, AssignmentStatus, CalendarEventKind, NotificationType, SyllabusProcessingStatus } from '@prisma/client'
+
+const prisma = new PrismaClient()
+const day = (value: string) => new Date(`${value}T12:00:00.000Z`)
+const now = new Date('2026-09-02T12:00:00.000Z')
+
+async function main() {
+  await prisma.calendarEvent.deleteMany(); await prisma.notification.deleteMany(); await prisma.clubEvent.deleteMany(); await prisma.club.deleteMany(); await prisma.syllabus.deleteMany(); await prisma.exam.deleteMany(); await prisma.assignment.deleteMany(); await prisma.classMeeting.deleteMany(); await prisma.course.deleteMany(); await prisma.semester.deleteMany(); await prisma.user.deleteMany()
+  const user = await prisma.user.create({ data: { name: 'Tom Sullivan', email: 'tom.sullivan@example.com' } })
+  const semester = await prisma.semester.create({ data: { userId: user.id, name: 'Fall 2026', startDate: day('2026-08-24'), endDate: day('2026-12-18'), isCurrent: true } })
+  const courses = await Promise.all([
+    ['CS 301', 'Data Structures & Algorithms', 'Science Hall', '204', 'Dr. Maya Patel'], ['MATH 214', 'Linear Algebra', 'Math Building', '118', 'Prof. Ethan Brooks'], ['ENG 205', 'Creative Writing Workshop', 'Arts Center', '301', 'Dr. Lena Ortiz'], ['HIST 110', 'World History Since 1500', 'Humanities Hall', '110', 'Dr. Noah Bennett'], ['BIO 120', 'Ecology and Environment', 'Life Sciences', '22', 'Dr. Priya Shah'],
+  ].map(([courseCode, name, building, room, professorName]) => prisma.course.create({ data: { semesterId: semester.id, courseCode, name, building, room, professorName, professorEmail: `${professorName.toLowerCase().replace(/[^a-z]+/g, '.')}@university.example` } })))
+  const meetingPatterns: [number, string, string][] = [[1, '09:00', '10:15'], [3, '09:00', '10:15'], [2, '11:00', '12:15'], [4, '11:00', '12:15'], [2, '14:00', '15:15'], [4, '14:00', '15:15'], [1, '13:00', '14:15'], [5, '10:00', '11:15']]
+  for (let i = 0; i < meetingPatterns.length; i++) { const course = courses[i % courses.length]; const [dayOfWeek, startTime, endTime] = meetingPatterns[i]; await prisma.classMeeting.create({ data: { courseId: course.id, dayOfWeek, startTime, endTime, building: course.building, room: course.room } }) }
+  const assignmentData = ['Problem Set 4: Graphs', 'Proof Portfolio', 'Primary Source Analysis', 'Lab Report 2', 'Reading Response', 'Dynamic Programming Notes', 'Midterm Study Guide', 'Creative Draft 1', 'Field Observation Log', 'Essay Outline']
+  for (let i = 0; i < assignmentData.length; i++) { const course = courses[i % courses.length]; const due = new Date(now.getTime() + (i % 7) * 86400000); const assignment = await prisma.assignment.create({ data: { courseId: course.id, title: assignmentData[i], dueDate: due, dueTime: i % 2 ? '17:00' : '23:59', priority: i < 2 ? AssignmentPriority.HIGH : i < 5 ? AssignmentPriority.MEDIUM : AssignmentPriority.LOW, status: i === 8 ? AssignmentStatus.COMPLETED : AssignmentStatus.TODO, weight: 5 + i } }); await prisma.calendarEvent.create({ data: { userId: user.id, kind: CalendarEventKind.ASSIGNMENT, title: assignment.title, startDate: due, endDate: due, assignmentId: assignment.id, courseId: course.id } }) }
+  for (const [course, title, date] of [[courses[0], 'Midterm Exam', '2026-10-15'], [courses[1], 'Linear Algebra Final', '2026-12-10']] as const) await prisma.exam.create({ data: { courseId: course.id, title, examDate: day(date), startTime: '10:00', endTime: '12:00', location: 'Main Lecture Hall' } })
+  const clubNames = ['Design Society', 'Outdoor Club', 'Computer Science Club', 'Campus Volunteers']; const clubs = await Promise.all(clubNames.map(name => prisma.club.create({ data: { userId: user.id, name, description: `A welcoming community for ${name.toLowerCase()} members.`, location: 'Student Union', website: `https://clubs.example/${name.toLowerCase().replaceAll(' ', '-')}`, contactEmail: `${name.toLowerCase().replaceAll(' ', '.')}@university.example` } })))
+  for (let i = 0; i < 8; i++) { const start = new Date(now.getTime() + (i + 1) * 86400000); start.setHours(18, 30, 0, 0); const event = await prisma.clubEvent.create({ data: { clubId: clubs[i % clubs.length].id, name: ['Portfolio Review Night', 'Sunset Hike', 'Hack Night', 'Community Cleanup'][i % 4], description: 'Meet fellow students and make something memorable.', startDate: start, endDate: new Date(start.getTime() + 90 * 60000), location: ['Innovation Lab', 'North Gate', 'Tech Commons', 'River Park'][i % 4] } }); await prisma.calendarEvent.create({ data: { userId: user.id, kind: CalendarEventKind.CLUB_EVENT, title: event.name, startDate: event.startDate, endDate: event.endDate, location: event.location, clubEventId: event.id } }) }
+  await prisma.syllabus.create({ data: { courseId: courses[0].id, fileName: 'cs-301-syllabus.pdf', filePath: 'uploads/cs-301-syllabus.pdf', processingStatus: SyllabusProcessingStatus.UPLOADED } })
+  await prisma.notification.create({ data: { userId: user.id, title: 'Welcome to Fall 2026', message: 'Your semester workspace is ready.', type: NotificationType.GENERAL } })
+  console.log(`Seeded ${user.email} with ${courses.length} courses, 10 assignments, 2 exams, 4 clubs, and 8 club events.`)
+}
+
+main().catch(error => { console.error(error); process.exit(1) }).finally(() => prisma.$disconnect())
