@@ -7,6 +7,7 @@ type EventType = 'class' | 'assignment' | 'exam' | 'club' | 'personal'
 
 const labels: Record<EventType, string> = { class: 'Class', assignment: 'Assignment', exam: 'Exam', club: 'Club', personal: 'Meeting' }
 const weekdays = [{ value: 1, label: 'Mon' }, { value: 2, label: 'Tue' }, { value: 3, label: 'Wed' }, { value: 4, label: 'Thu' }, { value: 5, label: 'Fri' }]
+const emptyForm = () => ({ title: '', courseId: '', courseCode: '', customCourseName: '', clubId: '', customClubName: '', startDate: '', endDate: '', date: '', start: '', end: '', location: '', description: '', daysOfWeek: [] as number[] })
 
 export function CalendarCreateV2({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false)
@@ -14,7 +15,7 @@ export function CalendarCreateV2({ onCreated }: { onCreated: () => void }) {
   const [type, setType] = useState<EventType>('class')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ title: '', courseId: '', courseCode: '', customCourseName: '', clubId: '', customClubName: '', startDate: '', endDate: '', date: '', start: '', end: '', location: '', description: '', daysOfWeek: [] as number[] })
+  const [form, setForm] = useState(emptyForm)
 
   useEffect(() => { if (open) appData().then(setData) }, [open])
 
@@ -36,6 +37,8 @@ export function CalendarCreateV2({ onCreated }: { onCreated: () => void }) {
       if (!form.clubId || !form.date || !form.start || !form.end) return setError('Club, date, start time, and end time are required.')
       if (form.clubId === 'OTHER' && !form.customClubName.trim()) return setError('Enter a name for the new club.')
       if (form.end <= form.start) return setError('End time must be after start time.')
+    } else if (type === 'personal') {
+      if (!form.title || !form.date || !form.start) return setError('Title, date, and time are required.')
     } else {
       if (!form.title || !form.date || !form.start || !form.end) return setError('Title, date, start time, and end time are required.')
       if (form.end <= form.start) return setError('End time must be after start time.')
@@ -71,7 +74,7 @@ export function CalendarCreateV2({ onCreated }: { onCreated: () => void }) {
     <button className="primary-btn calendar-create-button" onClick={() => setOpen(true)}><CalendarPlus size={16}/> New Event</button>
     {open && <div className="modal-backdrop"><section className="modal">
       <div className="modal-head"><h2>Add Calendar Event</h2><button className="icon-btn" onClick={close} aria-label="Close"><X size={18}/></button></div>
-      <div className="event-type-grid">{(Object.keys(labels) as EventType[]).map(option => <button type="button" className={type === option ? `event-type active ${option}` : `event-type ${option}`} key={option} onClick={() => { setType(option); setError('') }}>{labels[option]}</button>)}</div>
+      <div className="event-type-grid">{(Object.keys(labels) as EventType[]).map(option => <button type="button" className={type === option ? `event-type active ${option}` : `event-type ${option}`} key={option} onClick={() => { setType(option); setForm(emptyForm()); setError('') }}>{labels[option]}</button>)}</div>
       <form className="form-grid" onSubmit={submit}>
         {type === 'class' ? <>
           <label className="wide">Course<select value={form.courseId} onChange={event => update('courseId', event.target.value)} required><option value="">Select a course</option>{data?.semester.courses.map((course: any) => <option value={course.id} key={course.id}>{course.courseCode} - {course.name}</option>)}<option value="OTHER">Other</option></select></label>
@@ -89,8 +92,8 @@ export function CalendarCreateV2({ onCreated }: { onCreated: () => void }) {
           {(type === 'assignment' || type === 'exam') && <label className="wide">Course<select value={form.courseId} onChange={event => update('courseId', event.target.value)} required><option value="">Select a course</option>{data?.semester.courses.map((course: any) => <option value={course.id} key={course.id}>{course.courseCode} - {course.name}</option>)}</select></label>}
           {type === 'club' && <><label className="wide">Club<select value={form.clubId} onChange={event => update('clubId', event.target.value)} required><option value="">Select a club</option>{data?.clubs.map((club: any) => <option value={club.id} key={club.id}>{club.name}</option>)}<option value="OTHER">Other</option></select></label>{form.clubId === 'OTHER' && <label className="wide">Club name<input value={form.customClubName} onChange={event => update('customClubName', event.target.value)} required/></label>}</>}
           <label>{type === 'assignment' ? 'Due Date' : 'Date'}<input type="date" value={form.date} onChange={event => update('date', event.target.value)} required/></label>
-          <label>{type === 'assignment' || type === 'exam' ? 'Time' : 'Start time'}<input type="time" value={form.start} onChange={event => update('start', event.target.value)} required/></label>
-          {type !== 'assignment' && type !== 'exam' && <label>End time<input type="time" value={form.end} onChange={event => update('end', event.target.value)} required/></label>}
+          <label>{type === 'assignment' || type === 'exam' || type === 'personal' ? 'Time' : 'Start time'}<input type="time" value={form.start} onChange={event => update('start', event.target.value)} required/></label>
+          {type !== 'assignment' && type !== 'exam' && type !== 'personal' && <label>End time<input type="time" value={form.end} onChange={event => update('end', event.target.value)} required/></label>}
           <label>Location<input value={form.location} onChange={event => update('location', event.target.value)}/></label>
           <label className="wide">Description<textarea value={form.description} onChange={event => update('description', event.target.value)}/></label>
         </>}
